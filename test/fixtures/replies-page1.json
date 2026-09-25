@@ -1,0 +1,16 @@
+{
+  "code": 200,
+  "msg": "",
+  "type": "DEFAULT",
+  "data": {
+    "pagination": {
+      "since": 1790000001000,
+      "page": 1,
+      "has_next": false,
+      "sort": null,
+      "max_limit": 20
+    },
+    "html": "\n    <div class=\"reply-wrapper js-comment-reply\" id=\"comment-row-2000001\">\n        <div></div>\n        <div class=\"body__reply\">\n            <div class=\"reply__writer\">\n                <a class=\"writer__thumb\" href=\"/placeholder_replier1\">\n                    <img class=\"circle\" src=\"https://example-cdn.test/placeholder-avatar.png\" alt=\"Placeholder Replier 1\">\n                    <div class=\"thumb-overlay circle\"></div>\n                </a>\n            </div>\n            <div class=\"reply__body\" id=\"comment-box-2000001\">\n                <div class=\"body__writer\"><a class=\"writer__name\" href=\"/placeholder_replier1\">Placeholder Replier 1</a><p class=\"writer__date\">Feb 10, 2020</p></div>\n                <div class=\"body__comment js-comment-body\">This is a sample reply for testing.</div>\n                <div class=\"body__info\">\n                    <a class=\"info__button js-have-to-sign \"\n                       data-id=\"2000001\"\n                       data-cnt=\"8\"\n                       data-permalink=\"/episode/99999?_=_#comment-section\"\n                       data-where=\"Comment\"><span class=\"js-like-cnt\">8</span></a>\n                </div>\n            </div>\n        </div>\n    </div>\n"
+  },
+  "error_details": null
+}

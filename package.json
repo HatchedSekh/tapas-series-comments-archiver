@@ -1,0 +1,7 @@
+{
+  "name": "series-data-scraper",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}
