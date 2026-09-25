@@ -1,5 +1,5 @@
 {
-  "name": "series-data-scraper",
+  "name": "tapas-series-comments-archiver",
   "private": true,
   "scripts": {
     "test": "node --test"

@@ -1,4 +1,4 @@
-# Tapas Series Data Scraper
+# Tapas Series Comments Archiver
 
 Saves a Tapas series' episode comments to your computer as JSON files, so you have a copy when the site goes away.
 
