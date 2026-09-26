@@ -11,7 +11,7 @@ You need **Node.js** installed. If you're not sure, open a terminal and type `no
 1. Open a terminal in this folder (in Windows: open the folder in File Explorer, click the address bar, type `cmd`, press Enter).
 
 2. Go to the series' page on tapas.io and copy whatever comes after `/series/` in the address bar.
-   The scraper excepts series name and its id. Most of y'all probably just will use the series name which is ideal, if there are any issues with that, you'll need to grab its ID.
+   The scraper accepts series name and its id. Most of y'all probably just will use the series name which is ideal, if there are any issues with that, you'll need to grab its ID.
 
 3. Run:
 

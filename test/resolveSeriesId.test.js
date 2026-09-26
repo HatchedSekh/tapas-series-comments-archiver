@@ -37,3 +37,40 @@ test("resolves a URL slug to its numeric id via tapas.io/series/{slug}", async (
     global.fetch = originalFetch;
   }
 });
+
+const notFoundResponse = { status: 404, statusText: "Not Found", ok: false, json: async () => ({}) };
+
+test("retries with spaces stripped when the typed-out name 404s", async () => {
+  const requestedUrls = [];
+  const originalFetch = global.fetch;
+  global.fetch = async (url) => {
+    requestedUrls.push(String(url));
+    return String(url).endsWith("/series/No Future") ? notFoundResponse : jsonResponse({ data: { id: 5918 } });
+  };
+
+  try {
+    const result = await resolveSeriesId("No Future");
+    assert.equal(result, "5918");
+    assert.equal(requestedUrls.length, 2);
+    assert.ok(requestedUrls[0].endsWith("/series/No Future"));
+    assert.ok(requestedUrls[1].endsWith("/series/NoFuture"));
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("does not bother retrying when there are no spaces to strip", async () => {
+  let calls = 0;
+  const originalFetch = global.fetch;
+  global.fetch = async () => {
+    calls++;
+    return notFoundResponse;
+  };
+
+  try {
+    await assert.rejects(() => resolveSeriesId("DefinitelyNotReal"));
+    assert.equal(calls, 1);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});

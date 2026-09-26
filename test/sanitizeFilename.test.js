@@ -3,8 +3,10 @@ const assert = require("node:assert/strict");
 const { sanitizeFilename } = require("../lib");
 
 test("replaces Windows-illegal filename characters", () => {
-  // < > : " / \ | ? * are all illegal in Windows filenames, and this whole
-  // project runs on Windows, so this is the platform that actually matters.
+  /*
+   * < > : " / \ | ? * are all illegal in Windows filenames, and this whole
+   * project runs on Windows, so this is the platform that actually matters.
+   */
   assert.equal(sanitizeFilename('a<b>c:d"e/f\\g|h?i*j'), "a_b_c_d_e_f_g_h_i_j");
 });
 

@@ -4,20 +4,24 @@ const fs = require("fs");
 const path = require("path");
 const { parseCommentBlocks } = require("../lib");
 
-// Fixtures are synthetic (see test/fixtures/generate-fixtures.js) but use
-// Tapas's real markup structure/classes, captured live and then genericized
-// -- placeholder ids/usernames/text, not real people's comments, but the
-// same HTML shape parseCommentBlocks has to parse against the real site.
+/*
+ * Fixtures are synthetic (see test/fixtures/generate-fixtures.js) but use
+ * Tapas's real markup structure/classes, captured live and then genericized
+ * -- placeholder ids/usernames/text, not real people's comments, but the
+ * same HTML shape parseCommentBlocks has to parse against the real site.
+ */
 const rootFixture = JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures/root-comments.json"), "utf8"));
 const repliesFixture = JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures/replies-page1.json"), "utf8"));
 
 test("parses root comments with correct fields", () => {
   const comments = parseCommentBlocks(rootFixture.data.html, null);
 
-  // This fixture's total_comment_cnt is 7, but that counts roots + replies:
-  // 6 root comments here, plus 1 reply nested under comment 1000002 (see the
-  // "captures reply_cnt" test below) -- not a parsing bug, just the same
-  // root/reply split documented in lib.js.
+  /*
+   * This fixture's total_comment_cnt is 7, but that counts roots + replies:
+   * 6 root comments here, plus 1 reply nested under comment 1000002 (see the
+   * "captures reply_cnt" test below) -- not a parsing bug, just the same
+   * root/reply split documented in lib.js.
+   */
   assert.equal(comments.length, 6);
 
   const first = comments[0];

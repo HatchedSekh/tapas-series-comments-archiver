@@ -1,26 +1,24 @@
 const fs = require("fs");
 const path = require("path");
 
-// Two unrelated backends, both undocumented:
-// - api.tapas.io/v3 is the mobile app's API. Good for series/episode metadata.
-//   Its own /comments endpoint looked pageable but only ever returns a shallow
-//   "recent replies" slice (verified: 72/100 comments on a test episode, and
-//   every single one was a reply -- root comments never appeared at all).
-// - tapas.io (the website itself) is what actually renders the full comment
-//   section, confirmed 100/100 against total_comment_cnt with no duplicates.
-//   It returns HTML fragments embedded in JSON, not clean comment objects,
-//   hence the regex parsing below instead of json.field access.
+/*
+ * Two undocumented backends:
+ * - api.tapas.io/v3: the mobile app's API. Good for series/episode metadata,
+ *   but its /comments endpoint only returns a shallow slice of replies --
+ *   root comments never show up there at all.
+ * - tapas.io (the website): renders the actual full comment section, but as
+ *   HTML fragments embedded in JSON rather than clean objects, hence the
+ *   regex parsing below.
+ */
 const API_BASE = "https://api.tapas.io/v3";
 const WEB_BASE = "https://tapas.io";
 const API_HEADERS = {
   accept: "application/panda+json",
-  // These two headers just need to be present with a plausible value -- the
-  // server doesn't validate x-device-uuid's format despite what it claims,
-  // and x-device-type only needs to be a known platform string.
+  /* Just need to be present with a plausible value -- neither is actually validated. */
   "x-device-type": "ANDROID",
   "x-device-uuid": "bd1f1f4004c756d3",
 };
-const REQUEST_DELAY_MS = 300; // keep this polite -- the site's already flaky/going away
+const REQUEST_DELAY_MS = 300; 
 const MAX_RETRIES = 5;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -31,12 +29,10 @@ const httpGetJson = async (url, headers = {}) => {
     try {
       const res = await fetch(url, { headers });
       if (res.status >= 500) {
-        // 500s are common and transient here (hit one mid-development on this
-        // exact API, then a retry of the identical URL succeeded) -- retry.
+        // Transient here -- worth retrying.
         throw new Error(`${res.status} ${res.statusText} on ${url}`);
       }
       if (!res.ok) {
-        // 4xx means the request itself is wrong; retrying won't fix that.
         throw Object.assign(new Error(`${res.status} ${res.statusText} on ${url}`), { fatal: true });
       }
       return await res.json();
@@ -69,17 +65,27 @@ const getEpisodes = async (seriesId) => {
   return apiGet(`/series/${seriesId}/episodes`);
 };
 
-// tapas.io/series/{x} accepts EITHER the numeric series ID or the URL slug
-// (e.g. both /series/5918 and /series/NoFuture resolve to the same record) --
-// verified live, both return {"data":{"id":5918,"title":"No Future",...}}.
-// It only returns JSON with an explicit Accept header; without one it serves
-// the full HTML page instead. If the input is already numeric, skip the
-// network call entirely -- no need to resolve what's already resolved.
+/*
+ * tapas.io/series/{x} accepts either the numeric series ID or the URL slug --
+ * both resolve to the same record. Needs an explicit Accept header, or it
+ * serves the HTML page instead. Skip the network call if already numeric.
+ */
 const resolveSeriesId = async (input) => {
   if (/^\d+$/.test(String(input))) return String(input);
   await sleep(REQUEST_DELAY_MS);
-  const res = await httpGetJson(`${WEB_BASE}/series/${input}`, { accept: "application/json" });
-  return String(res.data.id);
+  try {
+    const res = await httpGetJson(`${WEB_BASE}/series/${input}`, { accept: "application/json" });
+    return String(res.data.id);
+  } catch (err) {
+    /* Tapas slugs never contain spaces (e.g. "No Future" -> "NoFuture"), so a
+     * typed-out title is a common miss. Retry once with spaces removed before
+     * giving up. */
+    const stripped = String(input).replace(/\s+/g, "");
+    if (!String(err.message).includes("404") || stripped === String(input)) throw err;
+    await sleep(REQUEST_DELAY_MS);
+    const res = await httpGetJson(`${WEB_BASE}/series/${stripped}`, { accept: "application/json" });
+    return String(res.data.id);
+  }
 };
 
 const HTML_ENTITIES = {
@@ -99,11 +105,10 @@ const decodeHtmlEntities = (str) =>
 
 const stripTags = (html) => html.replace(/<[^>]*>/g, "");
 
-// Parses the HTML fragment returned by the comment/replies endpoints into
-// structured records. Both root comments and replies share the same
-// id="comment-row-{id}" wrapper, so we split on that boundary.
-// This is brittle by nature -- it's matching Tapas's current template
-// markup, not a schema. If they redesign the comment section, this breaks.
+/*
+ * Splits on the shared id="comment-row-{id}" wrapper (roots and replies both
+ * use it). Brittle by nature -- matches Tapas's current markup, not a schema.
+ */
 const parseCommentBlocks = (html, parentId) => {
   const blockStarts = [...html.matchAll(/id="comment-row-(\d+)"/g)];
   const comments = [];
@@ -135,16 +140,17 @@ const parseCommentBlocks = (html, parentId) => {
   return comments;
 };
 
-// since here is a server-issued millisecond timestamp, not something we
-// compute -- each response's pagination.since must be fed into the next
-// request verbatim. Passing an arbitrary/invented value returns nothing.
+/*
+ * since is a server-issued timestamp -- always feed back the previous
+ * response's value, never invent one.
+ */
 const fetchAllRootComments = async (episodeId) => {
   const comments = [];
   const seenIds = new Set();
   let since = 0;
   let page = 1;
   let hasNext = true;
-  let guard = 0; // hard stop in case has_next lies and the cursor loops forever
+  let guard = 0; /* hard stop in case has_next lies and the cursor loops forever */
 
   while (hasNext && guard < 500) {
     guard++;
@@ -163,7 +169,7 @@ const fetchAllRootComments = async (episodeId) => {
 
     hasNext = res.data.pagination.has_next;
     const nextSince = res.data.pagination.since;
-    if (nextSince === since && res.data.pagination.page === page) break; // stalled cursor safety
+    if (nextSince === since && res.data.pagination.page === page) break; /* stalled cursor safety */
     since = nextSince;
     page = res.data.pagination.page;
   }
@@ -204,10 +210,10 @@ const fetchAllReplies = async (episodeId, rootId) => {
   return replies;
 };
 
-// Replies are a separate request per thread (that's how the site itself
-// lazy-loads them), so we only pay for it when a root actually has replies
-// -- fetching replies for every root regardless would roughly double the
-// request count on threads that never got any.
+/*
+ * Replies are a separate request per thread, so only fetch them when a root
+ * actually has replies.
+ */
 const getAllComments = async (episodeId) => {
   const roots = await fetchAllRootComments(episodeId);
   const all = [...roots];
@@ -224,12 +230,11 @@ const getAllComments = async (episodeId) => {
 
 const sanitizeFilename = (name) => name.replace(/[<>:"/\\|?*\x00-\x1F]/g, "_").trim();
 
-// Internal calls go through `module.exports.fn(...)` rather than the local
-// const directly, so tests can monkey-patch individual pieces (e.g. stub
-// getAllComments) without mocking the whole network stack. Note: plain
-// `exports.fn(...)` would NOT work here -- reassigning `module.exports = {}`
-// below breaks the `exports` alias, leaving it pointing at Node's original
-// (empty) default object.
+/*
+ * Calls go through `module.exports.fn()` so tests can stub individual pieces.
+ * Plain `exports.fn()` won't work -- reassigning module.exports below breaks
+ * that alias.
+ */
 const scrapeSeries = async (seriesIdOrSlug, outDir, limit) => {
   const seriesId = await module.exports.resolveSeriesId(seriesIdOrSlug);
   if (seriesId !== String(seriesIdOrSlug)) {
@@ -251,9 +256,7 @@ const scrapeSeries = async (seriesIdOrSlug, outDir, limit) => {
     const episodeName = ep.title || null;
     const filePath = path.join(seriesDir, `${episodeId}_${sanitizeFilename(episodeName || "untitled")}.json`);
 
-    // Resumable by design: a full series can be thousands of episodes and
-    // the site is reportedly going down, so a run that dies partway through
-    // (or an outage mid-scrape) should be safe to just restart later.
+    /* Resumable: skip episodes already saved, so an interrupted run can just restart. */
     if (fs.existsSync(filePath)) {
       console.log(`  [${i + 1}/${episodes.length}] Episode ${episodeId} already scraped, skipping.`);
       continue;

@@ -1,22 +1,78 @@
 const fs = require("fs");
 const path = require("path");
+const readline = require("readline");
 const { scrapeSeries } = require("./lib");
 
-// Safety net: a series can be thousands of episodes, so running this with no
-// limit specified should not silently kick off a massive scrape. You have to
-// opt into "all episodes" on purpose (LIMIT=all), not get it by omission.
+/*
+ * Safety net so a bare run can't silently kick off a massive scrape.
+ */
 const DEFAULT_LIMIT = 5;
 
+/*
+ * No args/env vars at all (e.g. double-clicking the exe). Ask interactively
+ * instead of printing a usage error into a console window that instantly closes.
+ */
+const runInteractive = async (outDir) => {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const ask = (question) => new Promise((resolve) => rl.question(question, resolve));
+
+  try {
+    let seriesInput = "";
+    while (!seriesInput) {
+      seriesInput = (await ask("Series name (or ID): ")).trim();
+    }
+
+    let limit;
+    const fetchAllAnswer = (await ask("Fetch all episodes? (y/n): ")).trim().toLowerCase();
+    if (fetchAllAnswer.startsWith("y")) {
+      limit = undefined;
+    } else {
+      limit = null;
+      while (limit === null) {
+        const raw = (await ask("How many episodes? ")).trim();
+        const parsed = parseInt(raw, 10);
+        if (Number.isInteger(parsed) && parsed > 0) {
+          limit = parsed;
+        } else {
+          console.log("Please enter a whole number greater than 0.");
+        }
+      }
+    }
+
+    /* Only retry on "series not found", other errors bubble up and end the program. */
+    let succeeded = false;
+    while (!succeeded) {
+      try {
+        await scrapeSeries(seriesInput, outDir, limit);
+        succeeded = true;
+      } catch (err) {
+        if (!String(err.message).includes("404")) throw err;
+
+        console.log(`\nCouldn't find a series called "${seriesInput}".`);
+        console.log(
+          'Double check how it appears in the URL: open the series page on tapas.io and copy exactly what comes after "/series/" in the address bar.\n'
+        );
+        seriesInput = "";
+        while (!seriesInput) {
+          seriesInput = (await ask("Series name (or ID): ")).trim();
+        }
+      }
+    }
+  } finally {
+    rl.close();
+  }
+};
+
 const main = async () => {
-  // CLI args win if given; otherwise fall back to env vars, so you can either
-  // run `node scraper.js 5918 4` or set SERIES_ID/LIMIT and run with no args.
+  /* CLI args win over env vars; neither given falls back to interactive prompts. */
   const seriesId = process.argv[2] || process.env.SERIES_ID;
   const limitRaw = process.argv[3] || process.env.LIMIT;
+  const outDir = path.join(__dirname, "output");
+  fs.mkdirSync(outDir, { recursive: true });
+
   if (!seriesId) {
-    console.error("Usage: node scraper.js <seriesId> [limit]");
-    console.error("   or: SERIES_ID=<id> LIMIT=<n> node scraper.js");
-    console.error(`(no limit given defaults to ${DEFAULT_LIMIT}; pass LIMIT=all for the whole series)`);
-    process.exit(1);
+    await runInteractive(outDir);
+    return;
   }
 
   let limit;
@@ -28,8 +84,7 @@ const main = async () => {
   } else {
     limit = parseInt(limitRaw, 10);
   }
-  const outDir = path.join(__dirname, "output");
-  fs.mkdirSync(outDir, { recursive: true });
+
   await scrapeSeries(seriesId, outDir, limit);
 };
 

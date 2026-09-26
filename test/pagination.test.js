@@ -2,8 +2,10 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { fetchAllRootComments } = require("../lib");
 
-// Minimal HTML that satisfies parseCommentBlocks' regexes -- not a real
-// fixture, just enough shape to drive the pagination loop in isolation.
+/*
+ * Minimal HTML that satisfies parseCommentBlocks' regexes -- not a real
+ * fixture, just enough shape to drive the pagination loop in isolation.
+ */
 const commentRow = (id, body) => `
   <div id="comment-row-${id}">
     <div class="body__writer"><a class="writer__name" href="/user${id}">User ${id}</a><p class="writer__date">Jan 01, 2020</p></div>
@@ -31,7 +33,7 @@ test("chains pages via pagination.since until has_next is false, deduping overla
         },
       });
     }
-    // page 2 repeats comment 1 (server-side overlap) and adds a new one
+    /* page 2 repeats comment 1 (server-side overlap) and adds a new one */
     return jsonResponse({
       data: {
         html: commentRow(1, "first") + commentRow(3, "third"),
@@ -55,8 +57,10 @@ test("stops instead of looping forever if the since cursor stalls", async () => 
   const originalFetch = global.fetch;
   global.fetch = async () => {
     call++;
-    // Same since/page every time, has_next always true -- a real API
-    // wouldn't do this, but the loop needs to survive it if it did.
+    /*
+     * Same since/page every time, has_next always true -- a real API
+     * wouldn't do this, but the loop needs to survive it if it did.
+     */
     return jsonResponse({
       data: {
         html: commentRow(99, "stuck"),

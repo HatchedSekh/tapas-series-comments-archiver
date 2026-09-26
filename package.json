@@ -1,7 +1,13 @@
 {
   "name": "tapas-series-comments-archiver",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "bundle": "esbuild scraper.js --bundle --platform=node --outfile=dist/bundle.js",
+    "build:exe": "npm run bundle && node --experimental-sea-config sea-config.json && node -e \"require('fs').copyFileSync(process.execPath, 'dist/tapas-series-comments-archiver.exe')\" && npx postject dist/tapas-series-comments-archiver.exe NODE_SEA_BLOB dist/sea-prep.blob --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
   }
 }

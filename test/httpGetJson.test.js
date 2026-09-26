@@ -21,7 +21,7 @@ test("retries on 5xx and eventually succeeds", async () => {
   try {
     const result = await httpGetJson("https://example.test/x");
     assert.equal(result.ok, true);
-    assert.equal(calls, 3); // failed twice, succeeded on the 3rd
+    assert.equal(calls, 3); /* failed twice, succeeded on the 3rd */
   } finally {
     global.fetch = originalFetch;
   }

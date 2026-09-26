@@ -27,7 +27,7 @@ test("skips episodes that already have an output file, and does not re-fetch the
   try {
     const seriesDir = path.join(outDir, "5918_Test Series");
     fs.mkdirSync(seriesDir, { recursive: true });
-    // Pre-seed episode 111's output so it looks already-scraped.
+    /* Pre-seed episode 111's output so it looks already-scraped. */
     fs.writeFileSync(
       path.join(seriesDir, "111_Ep One.json"),
       JSON.stringify({ episodeId: 111, commentCount: 3, comments: [] }),
@@ -47,7 +47,7 @@ test("skips episodes that already have an output file, and does not re-fetch the
     assert.equal(written.seriesName, "Test Series");
     assert.equal(written.commentCount, 1);
 
-    // The pre-seeded file for 111 should be untouched (still its original stub content).
+    /* The pre-seeded file for 111 should be untouched (still its original stub content). */
     const untouched = JSON.parse(fs.readFileSync(path.join(seriesDir, "111_Ep One.json"), "utf8"));
     assert.equal(untouched.commentCount, 3);
   } finally {
