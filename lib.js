@@ -143,9 +143,13 @@ const parseCommentBlocks = (html, parentId) => {
 /*
  * since is a server-issued timestamp -- always feed back the previous
  * response's value, never invent one.
+ *
+ * Shared by fetchAllRootComments and fetchAllReplies below: same
+ * since/page/has_next cursor shape and stall/guard safety on both of
+ * Tapas's comment endpoints, just a different URL and parentId per page.
  */
-const fetchAllRootComments = async (episodeId) => {
-  const comments = [];
+const fetchAllPaginated = async (urlForPage, parentId) => {
+  const items = [];
   const seenIds = new Set();
   let since = 0;
   let page = 1;
@@ -155,15 +159,14 @@ const fetchAllRootComments = async (episodeId) => {
   while (hasNext && guard < 500) {
     guard++;
     await sleep(REQUEST_DELAY_MS);
-    const url = `${WEB_BASE}/comment/${episodeId}?page=${page}&sort=TOP_COMMENT&since=${since}&init_load=0&wr=true&ep=false`;
-    const res = await httpGetJson(url);
-    const batch = parseCommentBlocks(res.data.html, null);
+    const res = await httpGetJson(urlForPage(page, since));
+    const batch = parseCommentBlocks(res.data.html, parentId);
     if (batch.length === 0) break;
 
     for (const c of batch) {
       if (!seenIds.has(c.id)) {
         seenIds.add(c.id);
-        comments.push(c);
+        items.push(c);
       }
     }
 
@@ -174,41 +177,17 @@ const fetchAllRootComments = async (episodeId) => {
     page = res.data.pagination.page;
   }
 
-  return comments;
+  return items;
 };
 
-const fetchAllReplies = async (episodeId, rootId) => {
-  const replies = [];
-  const seenIds = new Set();
-  let since = 0;
-  let page = 1;
-  let hasNext = true;
-  let guard = 0;
+const fetchAllRootComments = (episodeId) =>
+  fetchAllPaginated(
+    (page, since) => `${WEB_BASE}/comment/${episodeId}?page=${page}&sort=TOP_COMMENT&since=${since}&init_load=0&wr=true&ep=false`,
+    null
+  );
 
-  while (hasNext && guard < 500) {
-    guard++;
-    await sleep(REQUEST_DELAY_MS);
-    const url = `${WEB_BASE}/comment/${episodeId}/${rootId}/replies?page=${page}&since=${since}`;
-    const res = await httpGetJson(url);
-    const batch = parseCommentBlocks(res.data.html, rootId);
-    if (batch.length === 0) break;
-
-    for (const c of batch) {
-      if (!seenIds.has(c.id)) {
-        seenIds.add(c.id);
-        replies.push(c);
-      }
-    }
-
-    hasNext = res.data.pagination.has_next;
-    const nextSince = res.data.pagination.since;
-    if (nextSince === since && res.data.pagination.page === page) break;
-    since = nextSince;
-    page = res.data.pagination.page;
-  }
-
-  return replies;
-};
+const fetchAllReplies = (episodeId, rootId) =>
+  fetchAllPaginated((page, since) => `${WEB_BASE}/comment/${episodeId}/${rootId}/replies?page=${page}&since=${since}`, rootId);
 
 /*
  * Replies are a separate request per thread, so only fetch them when a root
@@ -235,7 +214,7 @@ const sanitizeFilename = (name) => name.replace(/[<>:"/\\|?*\x00-\x1F]/g, "_").t
  * Plain `exports.fn()` won't work -- reassigning module.exports below breaks
  * that alias.
  */
-const scrapeSeries = async (seriesIdOrSlug, outDir, limit) => {
+const scrapeSeries = async (seriesIdOrSlug, outDir, episodeLimit) => {
   const seriesId = await module.exports.resolveSeriesId(seriesIdOrSlug);
   if (seriesId !== String(seriesIdOrSlug)) {
     console.log(`Resolved "${seriesIdOrSlug}" to series ID ${seriesId}.`);
@@ -247,7 +226,7 @@ const scrapeSeries = async (seriesIdOrSlug, outDir, limit) => {
   console.log(`Series: "${seriesName}" (${series.episode_cnt} episodes)`);
 
   let episodes = await module.exports.getEpisodes(seriesId);
-  if (limit) episodes = episodes.slice(0, limit);
+  if (episodeLimit) episodes = episodes.slice(0, episodeLimit);
   const seriesDir = path.join(outDir, `${seriesId}_${sanitizeFilename(seriesName)}`);
   fs.mkdirSync(seriesDir, { recursive: true });
 

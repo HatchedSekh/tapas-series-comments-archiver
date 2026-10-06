@@ -1,5 +1,10 @@
 {
   "main": "dist/bundle.js",
   "output": "dist/sea-prep.blob",
-  "disableExperimentalSEAWarning": true
+  "disableExperimentalSEAWarning": true,
+  "assets": {
+    "viewer-index-html": "viewer/index.html",
+    "viewer-style-css": "viewer/style.css",
+    "viewer-client-js": "viewer/client.js"
+  }
 }

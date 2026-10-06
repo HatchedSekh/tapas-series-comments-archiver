@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const readline = require("readline");
 const { scrapeSeries } = require("./lib");
+const { hasExistingOutput, startViewerServer } = require("./viewer");
 
 /*
  * Safety net so a bare run can't silently kick off a massive scrape.
@@ -22,20 +23,20 @@ const runInteractive = async (outDir) => {
       seriesInput = (await ask("Series name (or ID): ")).trim();
     }
 
-    let limit;
+    let fetchAll = false;
+    let episodeLimit = 0;
     const fetchAllAnswer = (await ask("Fetch all episodes? (y/n): ")).trim().toLowerCase();
     if (fetchAllAnswer.startsWith("y")) {
-      limit = undefined;
+      fetchAll = true;
     } else {
-      limit = null;
-      while (limit === null) {
+      while (true) {
         const raw = (await ask("How many episodes? ")).trim();
         const parsed = parseInt(raw, 10);
         if (Number.isInteger(parsed) && parsed > 0) {
-          limit = parsed;
-        } else {
-          console.log("Please enter a whole number greater than 0.");
+          episodeLimit = parsed;
+          break;
         }
+          console.log("Please enter a whole number greater than 0.")
       }
     }
 
@@ -43,7 +44,7 @@ const runInteractive = async (outDir) => {
     let succeeded = false;
     while (!succeeded) {
       try {
-        await scrapeSeries(seriesInput, outDir, limit);
+        await scrapeSeries(seriesInput, outDir, episodeLimit);
         succeeded = true;
       } catch (err) {
         if (!String(err.message).includes("404")) throw err;
@@ -68,6 +69,24 @@ const main = async () => {
   const seriesId = process.argv[2] || process.env.SERIES_ID;
   const limitRaw = process.argv[3] || process.env.LIMIT;
   const outDir = path.join(__dirname, "output");
+
+  if (!seriesId && hasExistingOutput(outDir)) {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    const answer = (
+      await new Promise((resolve) =>
+        rl.question('Existing scraped data found in "output". View it in a browser? (y/n): ', resolve)
+      )
+    )
+      .trim()
+      .toLowerCase();
+    rl.close();
+
+    if (answer.startsWith("y")) {
+      await startViewerServer(outDir);
+      return; // the server keeps the process alive; Ctrl+C exits
+    }
+  }
+
   fs.mkdirSync(outDir, { recursive: true });
 
   if (!seriesId) {
@@ -75,17 +94,17 @@ const main = async () => {
     return;
   }
 
-  let limit;
+  let episodeLimit;
   if (limitRaw === undefined) {
-    limit = DEFAULT_LIMIT;
+    episodeLimit = DEFAULT_LIMIT;
     console.warn(`No limit given -- defaulting to ${DEFAULT_LIMIT} episodes. Pass a number, or LIMIT=all, to change that.`);
   } else if (limitRaw.toLowerCase() === "all") {
-    limit = undefined;
+    episodeLimit = undefined;
   } else {
-    limit = parseInt(limitRaw, 10);
+    episodeLimit = parseInt(limitRaw, 10);
   }
 
-  await scrapeSeries(seriesId, outDir, limit);
+  await scrapeSeries(seriesId, outDir, episodeLimit);
 };
 
 main().catch((err) => {
